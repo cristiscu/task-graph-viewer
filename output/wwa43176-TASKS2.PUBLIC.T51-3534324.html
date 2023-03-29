@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>Task Graph Run 3534324</title>
+</head>
+<body>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <div id="chart_div"></div>
+    <script type="text/javascript">
+        google.charts.load("current", { packages: ["gantt"] });
+        google.charts.setOnLoadCallback(drawChart);
+
+        function toMilliseconds(minutes) { return minutes * 60 * 1000; }
+
+        function drawChart() {
+            var otherData = new google.visualization.DataTable();
+            otherData.addColumn("string", "Task ID");
+            otherData.addColumn("string", "Task Name");
+            otherData.addColumn("string", "Resource");
+            otherData.addColumn("date", "Start");
+            otherData.addColumn("date", "End");
+            otherData.addColumn("number", "Duration");
+            otherData.addColumn("number", "Percent Complete");
+            otherData.addColumn("string", "Dependencies");
+
+            otherData.addRows([[
+            "toTrain",
+            "Walk to train stop",
+            "walk",
+            null,
+            null,
+            300000,
+            100,
+            null,
+          ],
+          [
+            "music",
+            "Listen to music",
+            "music",
+            null,
+            null,
+            4200000,
+            100,
+            null,
+          ],
+          [
+            "wait",
+            "Wait for train",
+            "wait",
+            null,
+            null,
+            600000,
+            100,
+            "toTrain",
+          ],
+          [
+            "train",
+            "Train ride",
+            "train",
+            null,
+            null,
+            2700000,
+            75,
+            "wait",
+          ],
+          [
+            "toWork",
+            "Walk to work",
+            "walk",
+            null,
+            null,
+            600000,
+            0,
+            "train",
+          ],
+          [
+            "work",
+            "Sit down at desk",
+            null,
+            null,
+            null,
+            120000,
+            0,
+            "toWork",
+          ]]);
+
+            var options = {
+                height: 275,
+                gantt: { defaultStartDate: new Date(2015, 3, 28) }
+            };
+
+            var chart = new google.visualization.Gantt(document.getElementById("chart_div"));
+            chart.draw(otherData, options);
+        }
+    </script>
+</body>
+</html>

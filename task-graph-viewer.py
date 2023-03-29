@@ -63,7 +63,7 @@ def getAllTasks(database, schema, cur):
 
         task.state = str(row[10])
         task.allow_overlap = 'None'
-        if str(row[13]) != 'None': task.allow_overlap = bool(row[13])
+        if str(row[13]) != 'null': task.allow_overlap = bool(row[13])
         task.created_on = str(row[0])
         task.id = str(row[2])
         task.warehouse = str(row[7])
@@ -79,7 +79,9 @@ def getTaskGraph(tasks):
     nodes = ""; edges = ""
     for name in tasks:
         task = tasks[name]
-        nodes += (f'  {name} [ label=<<table style="rounded" border="0" cellborder="0" cellspacing="0" cellpadding="1">\n'
+        color = "#6c6c6c" if task.state == 'suspended' else 'SkyBlue'
+        nodes += (f'  {name} [ color="{color}"\n'
+            + f'  label=<<table style="rounded" border="0" cellborder="0" cellspacing="0" cellpadding="1">\n'
             + f'<tr><td bgcolor="#e0e0e0" align="center"><font color="#000000"><b>{name}</b></font></td></tr>\n'
             + f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>state</i>: {task.state}</font></td></tr>\n')
         if task.warehouse != 'None':
@@ -97,34 +99,104 @@ def getTaskGraph(tasks):
 
     return ('digraph G {\n'
         + f'  graph [ rankdir="LR" bgcolor="#ffffff" ]\n'
-        + f'  node [ style="filled" shape="Mrecord" color="SkyBlue" fillcolor="#f5f5f5" color="#6c6c6c" penwidth="1" ]\n'
-        + f'  edge [ penwidth="1" color="#696969" dir="forward" style="solid" ]\n\n'
-        + f'{nodes}\n{edges}}}\n')
+        + f'  node [ shape="Mrecord" style="filled" fillcolor="#f5f5f5" penwidth="1" ]\n'
+        + f'  edge [ style="solid" color="#6c6c6c" penwidth="1" ]\n\n'
+        + f'{nodes}\n{edges}}}')
 
-def saveHtml(filename, s):
+def saveHtmlGraph(filename, content, title):
     """
-    save in HTML file using d3-graphviz
+    generate HTML file with embedded digraph, using d3-graphviz
     https://bl.ocks.org/magjac/4acffdb3afbc4f71b448a210b5060bca
     https://github.com/magjac/d3-graphviz#creating-a-graphviz-renderer
     """
-    s = ('<!DOCTYPE html>\n'
-        + '<meta charset="utf-8">\n'
-        + '<body>'
-        + '<script src="https://d3js.org/d3.v5.min.js"></script>\n'
-        + '<script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>\n'
-        + '<script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>\n'
-        + '<div id="graph" style="text-align: center;"></div>\n'
-        + '<script>\n'
-        + 'var graphviz = d3.select("#graph").graphviz()\n'
-        + '   .on("initEnd", () => { graphviz.renderDot(d3.select("#digraph").text()); });\n'
-        + '</script>\n'
-        + '<textarea id="digraph" style="display:none;">\n'
-        + s
-        + '</textarea>\n')
-
+    
     print(f"Generating {filename} file...")
+    with open('./templates/dot-template.html', 'r') as file:
+        template = file.read()
     with open(filename, "w") as file:
-        file.write(s)
+        file.write(template
+            .replace('{{content}}', content)
+            .replace('{{title}}', title))
+
+def getTaskGraphRun(taskName, runID, cur):
+    """
+    Data for a task graph run
+    """
+
+    return """[
+            "toTrain",
+            "Walk to train stop",
+            "walk",
+            null,
+            null,
+            300000,
+            100,
+            null,
+          ],
+          [
+            "music",
+            "Listen to music",
+            "music",
+            null,
+            null,
+            4200000,
+            100,
+            null,
+          ],
+          [
+            "wait",
+            "Wait for train",
+            "wait",
+            null,
+            null,
+            600000,
+            100,
+            "toTrain",
+          ],
+          [
+            "train",
+            "Train ride",
+            "train",
+            null,
+            null,
+            2700000,
+            75,
+            "wait",
+          ],
+          [
+            "toWork",
+            "Walk to work",
+            "walk",
+            null,
+            null,
+            600000,
+            0,
+            "train",
+          ],
+          [
+            "work",
+            "Sit down at desk",
+            null,
+            null,
+            null,
+            120000,
+            0,
+            "toWork",
+          ]"""
+
+def saveHtmlChart(filename, content, title):
+    """
+    generate HTML file with embedded Gantt chart, using Google Charts
+    https://developers.google.com/chart/interactive/docs/gallery/ganttchart
+    """
+    
+    print(f"Generating {filename} file...")
+    with open('./templates/gantt-template.html', 'r') as file:
+        template = file.read()
+    with open(filename, "w") as file:
+        file.write(template
+            .replace('{{content}}', content)
+            .replace('{{title}}', title))
 
 def connect(connect_mode, account, user, role, warehouse, database, schema):
 
@@ -214,10 +286,8 @@ def main():
     else:
         taskNames = [taskName]
 
+    # get all tasks and remove those with a different root than current root task
     tasks = getAllTasks(database, schema, cur)
-    con.close()
-
-    # remove tasks with a different root that current root task
     if taskName != None:
         tasks2 = {}
         for parent in tasks:
@@ -226,19 +296,19 @@ def main():
                 tasks2[parent] = task
         tasks = tasks2
 
-    runID = sys.argv[2] if len(sys.argv) >= 3 else None
+    # save HTML file with DOT digraph or Gantt chart for a task run
+    runID = sys.argv[2] if taskName != None and len(sys.argv) >= 3 else None
     if runID == None:
-        # get DOT digraph string
-        s = getTaskGraph(tasks)
-        print("\nGenerated DOT digraph:")
-        print(s)
+        title = f"{database}.{schema}"
+        if taskName != None: title += f".{taskName}"
+        filename = f"output/{account}-{title}.html"
+        title = f"Task Graph {title}" if taskName != None else f"All Task Graphs in {title}"
+        saveHtmlGraph(filename, getTaskGraph(tasks), title)
+    else:
+        filename = f"output/{account}-{database}.{schema}.{taskName}-{runID}.html"
+        saveHtmlChart(filename, getTaskGraphRun(taskName, runID, cur), f"Task Graph Run {runID}")
 
-    # save as HTML file
-    filename = f"output/{account}-{database}.{schema}"
-    if taskName != None: filename += f".{taskName}"
-    if runID != None: filename += f"-{runID}"
-    filename += ".html"
-    saveHtml(filename, s)
+    con.close()
 
 if __name__ == "__main__":
     main()
