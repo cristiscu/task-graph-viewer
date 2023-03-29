@@ -37,7 +37,11 @@ Connect with a root task name (case-sensitive, that you can get from the previou
 
 ![Single Task Graph](/images/task-graph-51.png)
 
-# 3. Show a Gantt Chart for one single Task Graph Run
+Here is the same graph from Snowflake:
+
+![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png.png)
+
+# 3. Show a Gantt Chart for one single Task Graph Run - TODO
 
 Connect with a root task name (case-sensitive!), and a run ID for this task (that you can get from the previous call). We'll generate a Gantt Chart for the execution of all related tasks. Example:
 
