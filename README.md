@@ -41,10 +41,10 @@ Here is the same graph from Snowflake:
 
 ![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png)
 
-# 3. Show a Gantt Chart for one single Task Graph Run - TODO
+# 3. Show a Gantt Chart for one single Task Graph Run
 
-Connect with a root task name (case-sensitive!), and a run ID for this task (that you can get from the previous call). We'll generate a Gantt Chart for the execution of all related tasks. Example:
+Connect with a root task name (case-sensitive!), and a run ID for this task (that you can get from the previous call). We'll generate a Gantt Chart (with the free Google Charts JS library) for the execution of all related tasks. Example:
 
 **<code>python task-graph-viewer.py T51 1680032510785</code>**  
 
-![Single Task Graph Run](/images/task-graph-run-51.png)
+![Single Task Graph Run](/images/task-graph-run.png)

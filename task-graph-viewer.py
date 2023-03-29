@@ -8,8 +8,15 @@ import os, sys
 import configparser
 import snowflake.connector
 from pathlib import Path
+from datetime import datetime
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+
+# https://stackoverflow.com/questions/18426882/python-time-difference-in-milliseconds-not-working-for-me
+def millis_interval(start, end):
+    """start and end are datetime instances"""
+    diff = end - start
+    return int(diff.days * 24 * 60 * 60 * 1000 + diff.seconds * 1000 + diff.microseconds / 1000)
 
 class Task:
     """
@@ -27,12 +34,49 @@ class Task:
                 return True
         return False
 
+    def getPredecessors(self):
+        s = ''
+        for parent in self.predecessors:
+            if len(s) > 0: s += ','
+            s += parent
+
+        return s
+
+class TaskRun:
+    """
+    Database task run, for a root task
+    """
+    
+    def __init__(self, id,taskName, state,
+                 scheduled_time, query_start_time, completed_time):
+        self.id = id
+        self.taskName = taskName
+        self.state = state
+
+        self.scheduled_time = scheduled_time.replace(tzinfo=None)
+        self.query_start_time = query_start_time.replace(tzinfo=None)
+        self.completed_time = completed_time.replace(tzinfo=None)
+
+        self.duration1 = millis_interval(self.scheduled_time, self.query_start_time)
+        self.duration2 = millis_interval(self.query_start_time, self.completed_time)
+        self.percent = int(self.duration1 / (self.duration1 + self.duration2) * 100)
+
+    def getChartData(self, tasks):
+        return (f'\n[ "{self.taskName}", "{self.taskName}",'
+            + f' new Date("{self.scheduled_time}"), new Date("{self.completed_time}"), null,'
+            + f' {self.percent}, "{tasks[self.taskName].getPredecessors()}" ],')
+
+    def dump(self, showTask):
+        print(f'   {self.taskName if showTask else self.id}'
+            + f' ({self.state}) {self.scheduled_time}'
+            + f' -> {self.query_start_time} [{self.duration1} ms]'
+            + f' -> {self.completed_time} [{self.duration2} ms]');
+
 def getRootTasks(database, schema, cur):
     """
     Get all root tasks in the database schema
     """
 
-    # get tasks
     tasks = []
     query = f"show tasks in schema {database}.{schema}"
     results = cur.execute(query).fetchall()
@@ -70,6 +114,39 @@ def getAllTasks(database, schema, cur):
         task.schedule = str(row[8])
     
     return tasks
+
+def getAllTaskRuns(taskName, cur):
+    """
+    Get all task runs for a task
+    """
+
+    runs = []
+    query = (f'select run_id, state,\n'
+        + f'  scheduled_time, query_start_time, completed_time\n'
+        + f'from table(information_schema.task_history(task_name => \'{taskName}\'))\n'
+        + f'order by query_start_time desc;')
+    results = cur.execute(query).fetchall()
+    for row in results:
+        runs.append(TaskRun(str(row[0]), taskName, str(row[1]), row[2], row[3], row[4]))
+    
+    return runs
+
+def getRunHistory(runID, cur):
+    """
+    Get all run history for a task run
+    """
+
+    runs = []
+    query = (f'select name, state,\n'
+        + f'  scheduled_time, query_start_time, completed_time\n'
+        + f'from table(information_schema.task_history())\n'
+        + f'where run_id = \'{runID}\'\n'
+        + f'order by query_start_time;')
+    results = cur.execute(query).fetchall()
+    for row in results:
+        runs.append(TaskRun(runID, str(row[0]), str(row[1]), row[2], row[3], row[4]))
+    
+    return runs
 
 def getTaskGraph(tasks):
     """
@@ -118,19 +195,14 @@ def saveHtmlGraph(filename, content, title):
             .replace('{{content}}', content)
             .replace('{{title}}', title))
 
-def getTaskGraphRun(taskName, runID, cur):
+def getTaskGraphRun(tasks, runs, cur):
     """
     Data for a task graph run
     """
 
-    return """
-    [ "T1", "T1", null, null, 300000, 100, null ],
-    [ "T2", "T2", null, null, 4200000, 100, null ],
-    [ "T3", "T3", null, null, 600000, 100, "T1" ],
-    [ "T4", "T4", null, null, 2700000, 75, "T3" ],
-    [ "T5", "T5", null, null, 600000, 0, "T4" ],
-    [ "T6", "T6", null, null, 120000, 0, "T5", ]
-    """
+    s = ''
+    for run in runs: s += run.getChartData(tasks)
+    return s
 
 def saveHtmlChart(filename, content, title):
     """
@@ -222,8 +294,10 @@ def main():
         print(f"There are no root tasks in the {database}.{schema} database schema!")
         sys.exit(2)
 
-    # single task name?
     taskName = sys.argv[1] if len(sys.argv) >= 2 else None
+    runID = sys.argv[2] if taskName != None and len(sys.argv) >= 3 else None
+
+    # single task name?
     if taskName == None:
         # show all root task names
         print(f"The root tasks in the {database}.{schema} database schema:")
@@ -233,6 +307,12 @@ def main():
         sys.exit(2)
     else:
         taskNames = [taskName]
+
+        # show all root task names
+        if runID == None:
+            runs = getAllTaskRuns(taskName, cur)
+            print(f"Task runs for {taskName}:")
+            for run in runs: run.dump(False)
 
     # get all tasks and remove those with a different root than current root task
     tasks = getAllTasks(database, schema, cur)
@@ -245,7 +325,6 @@ def main():
         tasks = tasks2
 
     # save HTML file with DOT digraph or Gantt chart for a task run
-    runID = sys.argv[2] if taskName != None and len(sys.argv) >= 3 else None
     if runID == None:
         title = f"{database}.{schema}"
         if taskName != None: title += f".{taskName}"
@@ -253,8 +332,13 @@ def main():
         title = f"Task Graph {title}" if taskName != None else f"All Task Graphs in {title}"
         saveHtmlGraph(filename, getTaskGraph(tasks), title)
     else:
+        # show run history for the given task run
+        runs = getRunHistory(runID, cur)
+        print(f"Run history for {runID} task run:")
+        for run in runs: run.dump(True)
+
         filename = f"output/{account}-{database}.{schema}.{taskName}-{runID}.html"
-        saveHtmlChart(filename, getTaskGraphRun(taskName, runID, cur), f"Task Graph Run {runID}")
+        saveHtmlChart(filename, getTaskGraphRun(tasks, runs, cur), f"Task Graph Run {runID}")
 
     con.close()
 
