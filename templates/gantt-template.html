@@ -15,7 +15,7 @@
             var otherData = new google.visualization.DataTable();
             otherData.addColumn("string", "Task ID");
             otherData.addColumn("string", "Task Name");
-            otherData.addColumn("string", "Resource");
+            // otherData.addColumn("string", "Resource");
             otherData.addColumn("date", "Start");
             otherData.addColumn("date", "End");
             otherData.addColumn("number", "Duration");
@@ -25,11 +25,20 @@
             otherData.addRows([{{content}}]);
 
             var options = {
-                height: 275,
-                gantt: { defaultStartDate: new Date(2015, 3, 28) }
+                height: 500,
+                gantt: { 
+                    arrow: { color: "#c8c8c8" },
+                    criticalPathEnabled: false,
+                    palette: [{
+                        "color": "#87CEEB",
+                        "dark": "#d3d3d3",
+                        "light": "#c8c8c8"
+                    }]
+                 },
             };
 
-            var chart = new google.visualization.Gantt(document.getElementById("chart_div"));
+            var chart = new google.visualization.Gantt(
+                document.getElementById("chart_div"));
             chart.draw(otherData, options);
         }
     </script>

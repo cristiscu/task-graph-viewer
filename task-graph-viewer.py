@@ -123,66 +123,14 @@ def getTaskGraphRun(taskName, runID, cur):
     Data for a task graph run
     """
 
-    return """[
-            "toTrain",
-            "Walk to train stop",
-            "walk",
-            null,
-            null,
-            300000,
-            100,
-            null,
-          ],
-          [
-            "music",
-            "Listen to music",
-            "music",
-            null,
-            null,
-            4200000,
-            100,
-            null,
-          ],
-          [
-            "wait",
-            "Wait for train",
-            "wait",
-            null,
-            null,
-            600000,
-            100,
-            "toTrain",
-          ],
-          [
-            "train",
-            "Train ride",
-            "train",
-            null,
-            null,
-            2700000,
-            75,
-            "wait",
-          ],
-          [
-            "toWork",
-            "Walk to work",
-            "walk",
-            null,
-            null,
-            600000,
-            0,
-            "train",
-          ],
-          [
-            "work",
-            "Sit down at desk",
-            null,
-            null,
-            null,
-            120000,
-            0,
-            "toWork",
-          ]"""
+    return """
+    [ "T1", "T1", null, null, 300000, 100, null ],
+    [ "T2", "T2", null, null, 4200000, 100, null ],
+    [ "T3", "T3", null, null, 600000, 100, "T1" ],
+    [ "T4", "T4", null, null, 2700000, 75, "T3" ],
+    [ "T5", "T5", null, null, 600000, 0, "T4" ],
+    [ "T6", "T6", null, null, 120000, 0, "T5", ]
+    """
 
 def saveHtmlChart(filename, content, title):
     """
