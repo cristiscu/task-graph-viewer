@@ -39,7 +39,7 @@ Connect with a root task name (case-sensitive, that you can get from the previou
 
 Here is the same graph from Snowflake:
 
-![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png.png)
+![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png)
 
 # 3. Show a Gantt Chart for one single Task Graph Run - TODO
 
