@@ -29,9 +29,9 @@ Here is an example with two task graphs (T21 and T51 are root task names that yo
 
 ![All Task Graphs](/images/schema-tasks.png)
 
-**<code>python task-graph-viewer.py --simple</code>**
-
 Use the ***--simple*** option to render the tasks without properties:
+
+**<code>python task-graph-viewer.py --simple</code>**
 
 ![Simple Graphs](/images/simple-graph.png)
 
@@ -47,9 +47,9 @@ Here is the same graph from Snowflake:
 
 ![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png)
 
-**<code>python task-graph-viewer.py T51 --vertical</code>**
-
 Use the ***--vertical*** option to render the graphs top-bottom:
+
+**<code>python task-graph-viewer.py T51 --vertical</code>**
 
 ![Top-Bottom Graphs](/images/top-bottom.png)
 
@@ -61,9 +61,9 @@ Connect with a root task name (case-sensitive!), and a run ID for this task (tha
 
 ![Single Task Graph Run](/images/task-graph-run.png)
 
-**<code>python task-graph-viewer.py T1 1680125626365 --simple</code>**  
-
 Use the ***--simple*** option to render the chart with no scheduled time:
+
+**<code>python task-graph-viewer.py T1 1680125626365 --simple</code>**  
 
 ![Simple Chart](/images/simple-chart.png)
 
