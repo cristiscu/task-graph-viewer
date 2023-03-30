@@ -4,11 +4,11 @@ Creation Date: Mar 2023
 Company:       XtractPro Software
 """
 
-import os, sys
-import configparser
+import os, sys, configparser
+# from datetime import datetime, time
+from time import sleep
 import snowflake.connector
 from pathlib import Path
-from datetime import datetime
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
@@ -53,34 +53,51 @@ class TaskRun:
         self.taskName = taskName
         self.state = state
 
-        self.scheduled_time = scheduled_time.replace(tzinfo=None)
-        self.query_start_time = query_start_time.replace(tzinfo=None)
-        self.completed_time = completed_time.replace(tzinfo=None)
+        self.scheduled_time = None if scheduled_time == None else scheduled_time        # .replace(tzinfo=None)
+        self.query_start_time = None if query_start_time == None else query_start_time  # .replace(tzinfo=None)
+        self.completed_time = None if completed_time == None else completed_time        # .replace(tzinfo=None)
 
-        self.duration1 = millis_interval(self.scheduled_time, self.query_start_time)
-        self.duration2 = millis_interval(self.query_start_time, self.completed_time)
-        self.percent = int(self.duration1 / (self.duration1 + self.duration2) * 100)
+        self.duration1 = 0
+        if self.scheduled_time != None and self.query_start_time != None:
+            self.duration1 = millis_interval(self.scheduled_time, self.query_start_time)
+        self.duration2 = 0
+        if self.completed_time != None and self.query_start_time != None:
+            self.duration2 = millis_interval(self.query_start_time, self.completed_time)
+        self.percent = 0
+        if self.duration1 > 0 and self.duration2 > 0:
+            self.percent = int(self.duration1 / (self.duration1 + self.duration2) * 100)
+
+    def getScreenData(self, showTask, simple):
+        s = f'   {self.taskName if showTask else self.id} ({self.state})'
+        if not simple:
+            if self.scheduled_time != None:
+                s += f' {self.scheduled_time}'
+                if self.query_start_time != None: s += f' ->'
+        if self.query_start_time != None:
+            s += f' {self.query_start_time} [{self.duration1} ms]'
+            if self.completed_time != None:
+                s += f' -> {self.completed_time} [{self.duration2} ms]'
+        print(s)
 
     def getChartData(self, tasks, simple):
+        s = f'\n[ "{self.taskName}", "{self.taskName}",'
         if simple:
-            return (f'\n[ "{self.taskName}", "{self.taskName}",'
-                + f' new Date("{self.query_start_time}"), new Date("{self.completed_time}"), null,'
-                + f' 0, "{tasks[self.taskName].getPredecessors()}" ],')
+            if self.query_start_time == None: return ''
+            s += f' new Date("{self.query_start_time}"),'
+            if self.completed_time != None:
+                s += f' new Date("{self.completed_time}"), null, 0'
+            else:
+                s += f' null, 0, 100'
         else:
-            return (f'\n[ "{self.taskName}", "{self.taskName}",'
-                + f' new Date("{self.scheduled_time}"), new Date("{self.completed_time}"), null,'
-                + f' {self.percent}, "{tasks[self.taskName].getPredecessors()}" ],')
-
-    def dump(self, showTask, simple):
-        if simple:
-            print(f'   {self.taskName if showTask else self.id}'
-                + f' ({self.state}) {self.query_start_time}'
-                + f' -> {self.completed_time} [{self.duration2} ms]');
-        else:
-            print(f'   {self.taskName if showTask else self.id}'
-                + f' ({self.state}) {self.scheduled_time}'
-                + f' -> {self.query_start_time} [{self.duration1} ms]'
-                + f' -> {self.completed_time} [{self.duration2} ms]');
+            if self.scheduled_time == None: return ''
+            s += f' new Date("{self.scheduled_time}"),'
+            if self.completed_time != None:
+                s += f' new Date("{self.completed_time}"), null, {self.percent}'
+            elif self.query_start_time != None:
+                s += f' new Date("{self.query_start_time}"), 0, 100'
+            else:
+                s += f' null, 0, 0'
+        return f'{s}, "{tasks[self.taskName].getPredecessors()}" ],'
 
 def getRootTasks(database, schema, cur):
     """
@@ -219,7 +236,7 @@ def getTaskGraphRun(tasks, runs, simple):
     for run in runs: s += run.getChartData(tasks, simple)
     return s
 
-def saveHtmlChart(filename, content, title):
+def saveHtmlChart(filename, content, title, monitor):
     """
     generate HTML file with embedded Gantt chart, using Google Charts
     https://developers.google.com/chart/interactive/docs/gallery/ganttchart
@@ -228,10 +245,14 @@ def saveHtmlChart(filename, content, title):
     print(f"Generating {filename} file...")
     with open('./templates/gantt-template.html', 'r') as file:
         template = file.read()
+    template = (template
+        .replace('{{content}}', content)
+        .replace('{{title}}', title))
+    if monitor:
+        template = template.replace('// {{monitor}}',
+            'setTimeout(() => { document.location.reload(); }, 3000);')
     with open(filename, "w") as file:
-        file.write(template
-            .replace('{{content}}', content)
-            .replace('{{title}}', title))
+        file.write(template)
 
 def connect(connect_mode, account, user, role, warehouse, database, schema):
 
@@ -314,14 +335,16 @@ def main():
     runID = None
     vertical = False
     simple = False
+    monitor = False
     i = 1
     while len(sys.argv) > i:
         arg = sys.argv[i]
         i = i + 1
 
         if arg.startswith('--'):
-            if arg == '--vertical': vertical = True
-            elif arg == '--simple': simple = True
+            vertical = arg == '--vertical'
+            simple = arg == '--simple'
+            monitor = arg == '--monitor'
         elif taskName == None: taskName = arg
         elif runID == None: runID = arg
 
@@ -340,7 +363,7 @@ def main():
         if runID == None:
             runs = getAllTaskRuns(taskName, cur)
             print(f"Task runs for {taskName}:")
-            for run in runs: run.dump(False, simple)
+            for run in runs: run.getScreenData(False, simple)
 
     # get all tasks and remove those with a different root than current root task
     tasks = getAllTasks(database, schema, cur)
@@ -357,16 +380,26 @@ def main():
         title = f"{database}.{schema}"
         if taskName != None: title += f".{taskName}"
         filename = f"output/{account}-{title}.html"
+        content = getTaskGraph(tasks, vertical, simple)
         title = f"Task Graph {title}" if taskName != None else f"All Task Graphs in {title}"
-        saveHtmlGraph(filename, getTaskGraph(tasks, vertical, simple), title)
+        saveHtmlGraph(filename, content, title)
     else:
-        # show run history for the given task run
-        runs = getRunHistory(runID, cur)
-        print(f"Run history for {runID} task run:")
-        for run in runs: run.dump(True, simple)
+        while True:
+            # show run history for the given task run
+            runs = getRunHistory(runID, cur)
+            print(f"Run history for {runID} task run:")
+            for run in runs: run.getScreenData(True, simple)
 
-        filename = f"output/{account}-{database}.{schema}.{taskName}-{runID}.html"
-        saveHtmlChart(filename, getTaskGraphRun(tasks, runs, simple), f"Task Graph Run {runID}")
+            content = getTaskGraphRun(tasks, runs, simple)
+            filename = f"output/{account}-{database}.{schema}.{taskName}-{runID}.html"
+            saveHtmlChart(filename, content, f"Task Graph Run {runID}", monitor)
+
+            # refresh every 3 seconds if monitoring and still running
+            if not monitor: break
+            if len(tasks) == len(runs):
+                next = next(run for run in runs if run.state != 'SUCCEEDED')
+                if next == None: break
+            sleep(3)
 
     con.close()
 

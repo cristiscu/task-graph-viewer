@@ -67,3 +67,15 @@ Use the ***--simple*** option to render the chart with no scheduled time:
 
 ![Simple Chart](/images/simple-chart.png)
 
+# 4. Monitoring with a reloaded Gantt Chart a Task Graph Run
+
+Connect as before - with a root task name (case-sensitive!), and a run ID for this task (that you can get from the previous call). But add a ***--monitor*** option. We'll generate a Gantt Chart as before, but that will automatically refresh on screen every 3 seconds. The Python code will also refresh its metadata for this run every 3 seconds. Exit with CTRL-C, or wait until all tasks enter the SUCCEEDED state for this run. Example:
+
+**<code>python task-graph-viewer.py T1 1680125626365 --monitor</code>**  
+
+Here is the intermediate view of a task graph which is still running. Compared to the last image here, it will gradually add new executed tasks until completed. 
+
+Last scheduled task here started to run, but it is not yet completed and we don't know when it will complete. So we simply show a gray bar, for the duration between scheduling and starting steps:
+
+![Task Run Monitoring](/images/task-monitoring.png)
+
