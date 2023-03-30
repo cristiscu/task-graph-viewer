@@ -61,16 +61,26 @@ class TaskRun:
         self.duration2 = millis_interval(self.query_start_time, self.completed_time)
         self.percent = int(self.duration1 / (self.duration1 + self.duration2) * 100)
 
-    def getChartData(self, tasks):
-        return (f'\n[ "{self.taskName}", "{self.taskName}",'
-            + f' new Date("{self.scheduled_time}"), new Date("{self.completed_time}"), null,'
-            + f' {self.percent}, "{tasks[self.taskName].getPredecessors()}" ],')
+    def getChartData(self, tasks, simple):
+        if simple:
+            return (f'\n[ "{self.taskName}", "{self.taskName}",'
+                + f' new Date("{self.query_start_time}"), new Date("{self.completed_time}"), null,'
+                + f' 0, "{tasks[self.taskName].getPredecessors()}" ],')
+        else:
+            return (f'\n[ "{self.taskName}", "{self.taskName}",'
+                + f' new Date("{self.scheduled_time}"), new Date("{self.completed_time}"), null,'
+                + f' {self.percent}, "{tasks[self.taskName].getPredecessors()}" ],')
 
-    def dump(self, showTask):
-        print(f'   {self.taskName if showTask else self.id}'
-            + f' ({self.state}) {self.scheduled_time}'
-            + f' -> {self.query_start_time} [{self.duration1} ms]'
-            + f' -> {self.completed_time} [{self.duration2} ms]');
+    def dump(self, showTask, simple):
+        if simple:
+            print(f'   {self.taskName if showTask else self.id}'
+                + f' ({self.state}) {self.query_start_time}'
+                + f' -> {self.completed_time} [{self.duration2} ms]');
+        else:
+            print(f'   {self.taskName if showTask else self.id}'
+                + f' ({self.state}) {self.scheduled_time}'
+                + f' -> {self.query_start_time} [{self.duration1} ms]'
+                + f' -> {self.completed_time} [{self.duration2} ms]');
 
 def getRootTasks(database, schema, cur):
     """
@@ -148,7 +158,7 @@ def getRunHistory(runID, cur):
     
     return runs
 
-def getTaskGraph(tasks):
+def getTaskGraph(tasks, vertical, simple):
     """
     Generates and returns a graph of all tasks in DOT notation
     """
@@ -157,26 +167,31 @@ def getTaskGraph(tasks):
     for name in tasks:
         task = tasks[name]
         color = "#6c6c6c" if task.state == 'suspended' else 'SkyBlue'
-        nodes += (f'  {name} [ color="{color}"\n'
-            + f'  label=<<table style="rounded" border="0" cellborder="0" cellspacing="0" cellpadding="1">\n'
-            + f'<tr><td bgcolor="#e0e0e0" align="center"><font color="#000000"><b>{name}</b></font></td></tr>\n'
-            + f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>state</i>: {task.state}</font></td></tr>\n')
-        if task.warehouse != 'None':
-            nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>warehouse</i>: {task.warehouse}</font></td></tr>\n'
-        nodes += (f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>id</i>: {task.id}</font></td></tr>\n'
-            + f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>created on</i>: {task.created_on}</font></td></tr>\n')
-        if task.allow_overlap != 'None':
-            nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>allow overlap</i>: {task.allow_overlap}</font></td></tr>\n'
-        if task.schedule != 'None':
-            nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>schedule</i>: {task.schedule}</font></td></tr>\n'
-        nodes += f'</table>> ];\n'
+        if simple:
+            nodes += f'  {name} [ color="{color}" ];\n'
+        else:
+            nodes += (f'  {name} [ color="{color}"\n'
+                + f'  label=<<table style="rounded" border="0" cellborder="0" cellspacing="0" cellpadding="1">\n'
+                + f'<tr><td bgcolor="#e0e0e0" align="center"><font color="#000000"><b>{name}</b></font></td></tr>\n'
+                + f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>state</i>: {task.state}</font></td></tr>\n')
+            if task.warehouse != 'None':
+                nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>warehouse</i>: {task.warehouse}</font></td></tr>\n'
+            nodes += (f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>id</i>: {task.id}</font></td></tr>\n'
+                + f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>created on</i>: {task.created_on}</font></td></tr>\n')
+            if task.allow_overlap != 'None':
+                nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>allow overlap</i>: {task.allow_overlap}</font></td></tr>\n'
+            if task.schedule != 'None':
+                nodes += f'<tr><td align="left"><font color="#000000" point-size="12.0"><i>schedule</i>: {task.schedule}</font></td></tr>\n'
+            nodes += f'</table>> ];\n'
 
         for parent in task.predecessors:
             edges += f'  {parent} -> {name};\n'
 
+    dir = "TB" if vertical else "LR"
+    shape = "ellipse" if simple else "Mrecord"
     return ('digraph G {\n'
-        + f'  graph [ rankdir="LR" bgcolor="#ffffff" ]\n'
-        + f'  node [ shape="Mrecord" style="filled" fillcolor="#f5f5f5" penwidth="1" ]\n'
+        + f'  graph [ rankdir="{dir}" bgcolor="#ffffff" ]\n'
+        + f'  node [ shape="{shape}" style="filled" fillcolor="#f5f5f5" penwidth="1" ]\n'
         + f'  edge [ style="solid" color="#6c6c6c" penwidth="1" ]\n\n'
         + f'{nodes}\n{edges}}}')
 
@@ -195,13 +210,13 @@ def saveHtmlGraph(filename, content, title):
             .replace('{{content}}', content)
             .replace('{{title}}', title))
 
-def getTaskGraphRun(tasks, runs, cur):
+def getTaskGraphRun(tasks, runs, simple):
     """
     Data for a task graph run
     """
 
     s = ''
-    for run in runs: s += run.getChartData(tasks)
+    for run in runs: s += run.getChartData(tasks, simple)
     return s
 
 def saveHtmlChart(filename, content, title):
@@ -294,8 +309,21 @@ def main():
         print(f"There are no root tasks in the {database}.{schema} database schema!")
         sys.exit(2)
 
-    taskName = sys.argv[1] if len(sys.argv) >= 2 else None
-    runID = sys.argv[2] if taskName != None and len(sys.argv) >= 3 else None
+    # read command line args
+    taskName = None
+    runID = None
+    vertical = False
+    simple = False
+    i = 1
+    while len(sys.argv) > i:
+        arg = sys.argv[i]
+        i = i + 1
+
+        if arg.startswith('--'):
+            if arg == '--vertical': vertical = True
+            elif arg == '--simple': simple = True
+        elif taskName == None: taskName = arg
+        elif runID == None: runID = arg
 
     # single task name?
     if taskName == None:
@@ -312,7 +340,7 @@ def main():
         if runID == None:
             runs = getAllTaskRuns(taskName, cur)
             print(f"Task runs for {taskName}:")
-            for run in runs: run.dump(False)
+            for run in runs: run.dump(False, simple)
 
     # get all tasks and remove those with a different root than current root task
     tasks = getAllTasks(database, schema, cur)
@@ -330,15 +358,15 @@ def main():
         if taskName != None: title += f".{taskName}"
         filename = f"output/{account}-{title}.html"
         title = f"Task Graph {title}" if taskName != None else f"All Task Graphs in {title}"
-        saveHtmlGraph(filename, getTaskGraph(tasks), title)
+        saveHtmlGraph(filename, getTaskGraph(tasks, vertical, simple), title)
     else:
         # show run history for the given task run
         runs = getRunHistory(runID, cur)
         print(f"Run history for {runID} task run:")
-        for run in runs: run.dump(True)
+        for run in runs: run.dump(True, simple)
 
         filename = f"output/{account}-{database}.{schema}.{taskName}-{runID}.html"
-        saveHtmlChart(filename, getTaskGraphRun(tasks, runs, cur), f"Task Graph Run {runID}")
+        saveHtmlChart(filename, getTaskGraphRun(tasks, runs, simple), f"Task Graph Run {runID}")
 
     con.close()
 

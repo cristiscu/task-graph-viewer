@@ -29,11 +29,17 @@ Here is an example with two task graphs (T21 and T51 are root task names that yo
 
 ![All Task Graphs](/images/schema-tasks.png)
 
+**<code>python task-graph-viewer.py --simple</code>**
+
+Use the ***--simple*** option to render the tasks without properties:
+
+![Simple Graphs](/images/simple-graph.png)
+
 # 2. Show the Topology of one single Task Graph
 
 Connect with a root task name (case-sensitive, that you can get from the previous call), to show the different task graph runs you had for this task graph in the past few days. We also generate a DOT graph in a HTML file for this specific task graph only. Example:
 
-**<code>python task-graph-viewer.py T51</code>**  
+**<code>python task-graph-viewer.py T51</code>**
 
 ![Single Task Graph](/images/task-graph-51.png)
 
@@ -41,10 +47,23 @@ Here is the same graph from Snowflake:
 
 ![Single Task Graph in Snowflake](/images/task-graph-snowflake-T51.png)
 
+**<code>python task-graph-viewer.py T51 --vertical</code>**
+
+Use the ***--vertical*** option to render the graphs top-bottom:
+
+![Top-Bottom Graphs](/images/top-bottom.png)
+
 # 3. Show a Gantt Chart for one single Task Graph Run
 
 Connect with a root task name (case-sensitive!), and a run ID for this task (that you can get from the previous call). We'll generate a Gantt Chart (with the free Google Charts JS library) for the execution of all related tasks. Example:
 
-**<code>python task-graph-viewer.py T51 1680032510785</code>**  
+**<code>python task-graph-viewer.py T1 1680125626365</code>**  
 
 ![Single Task Graph Run](/images/task-graph-run.png)
+
+**<code>python task-graph-viewer.py T1 1680125626365 --simple</code>**  
+
+Use the ***--simple*** option to render the chart with no scheduled time:
+
+![Simple Chart](/images/simple-chart.png)
+
